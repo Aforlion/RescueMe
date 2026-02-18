@@ -1,0 +1,11 @@
+{
+    "name": "@rescueme/ui",
+    "version": "0.0.0",
+    "main": "./index.tsx",
+    "types": "./index.tsx",
+    "devDependencies": {
+        "react": "18.3.1",
+        "react-native": "0.76.6",
+        "@types/react": "~18.3.12"
+    }
+}
