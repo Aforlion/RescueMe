@@ -13,6 +13,8 @@
     "react": "19.2.3",
     "react-dom": "19.2.3",
     "@supabase/supabase-js": "latest",
+    "@rescueme/types": "*",
+    "@rescueme/supabase": "*",
     "@rescueme/ui": "*"
   },
   "devDependencies": {

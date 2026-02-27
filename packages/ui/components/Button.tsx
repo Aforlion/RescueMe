@@ -1,5 +1,5 @@
-import React from 'react';
 import { TouchableOpacity, Text, StyleSheet } from 'react-native';
+import { tokens } from '../tokens';
 
 export const Button = ({ title, onPress }: { title: string; onPress: () => void }) => (
     <TouchableOpacity style={styles.button} onPress={onPress}>
@@ -9,13 +9,13 @@ export const Button = ({ title, onPress }: { title: string; onPress: () => void 
 
 const styles = StyleSheet.create({
     button: {
-        backgroundColor: '#0070f3',
-        padding: 16,
-        borderRadius: 8,
+        backgroundColor: tokens.colors.primary,
+        padding: tokens.spacing.md,
+        borderRadius: tokens.borderRadius.md,
         alignItems: 'center',
     },
     text: {
-        color: '#fff',
+        color: tokens.colors.text.inverse,
         fontWeight: 'bold',
     },
 });
