@@ -81,6 +81,7 @@ Deno.serve(async (req: Request) => {
 
     if (lookupError) {
         console.error(`[USSD] Incident lookup error for guide ${guideId}:`, lookupError.message);
+        return ussdResponse(`END System Error: ${lookupError.message}`);
     }
 
     // --- NEW: Main Menu Fallback if No Incident ---
