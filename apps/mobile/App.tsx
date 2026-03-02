@@ -2,14 +2,16 @@ import React, { useState } from 'react';
 import { View, StyleSheet, TouchableOpacity, Text, SafeAreaView } from 'react-native';
 import SOSScreen from './src/screens/SOSScreen';
 import PaloScreen from './src/screens/PaloScreen';
+import WalletScreen from './src/screens/WalletScreen';
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState<'SOS' | 'PALO'>('SOS');
+  const [activeTab, setActiveTab] = useState<'SOS' | 'PALO' | 'WALLET'>('SOS');
 
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.content}>
-        {activeTab === 'SOS' ? <SOSScreen /> : <PaloScreen />}
+        {activeTab === 'SOS' ? <SOSScreen /> :
+          activeTab === 'PALO' ? <PaloScreen /> : <WalletScreen />}
       </View>
 
       <View style={styles.tabBar}>
@@ -26,10 +28,18 @@ export default function App() {
         >
           <Text style={[styles.tabText, activeTab === 'PALO' && styles.activeTabText]}>PALO</Text>
         </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.tab, activeTab === 'WALLET' && styles.activeTab]}
+          onPress={() => setActiveTab('WALLET')}
+        >
+          <Text style={[styles.tabText, activeTab === 'WALLET' && styles.activeTabText]}>WALLET</Text>
+        </TouchableOpacity>
       </View>
     </SafeAreaView>
   );
 }
+
 
 const styles = StyleSheet.create({
   container: {

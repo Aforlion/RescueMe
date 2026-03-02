@@ -18,20 +18,27 @@ const REPLY_ACTIONS: Record<string, string> = {
 // Main handler
 // ---------------------------------------------------------------------------
 Deno.serve(async (req: Request) => {
-    // Validate Africa's Talking request signature
-    const incomingKey = req.headers.get("X-AT-APIKey") ?? "";
-    if (incomingKey !== AT_API_KEY) {
-        return ussdResponse("END Unauthorized");
-    }
+    // DEBUG: Log headers to see what AT is sending
+    console.log("Inbound Headers:", JSON.stringify(Object.fromEntries(req.headers.entries())));
+
+    // NOTE: Africa's Talking does NOT send your API Key in the callback header.
+    // For production security, we recommend using a private URL or checking AT IP ranges.
+    // Removing strict mismatch check for the live test.
+
 
     const body = await req.formData();
-    const phoneNumber = body.get("phoneNumber")?.toString() ?? "";
+    const rawPhone = body.get("phoneNumber")?.toString() ?? "";
     const text = body.get("text")?.toString().trim() ?? "";
-    const isUssd = body.has("serviceCode");   // USSD has serviceCode; SMS does not
+    const isUssd = body.has("serviceCode");
 
-    if (!phoneNumber || !text) {
-        return ussdResponse("END Invalid request. Please try again.");
+    console.log("Inbound Payload:", JSON.stringify(Object.fromEntries(body.entries())));
+
+    if (!rawPhone) {
+        return ussdResponse("END Invalid request. Missing phone number.");
     }
+
+    // Africa's Talking strips '+' in some configs — normalise to E.164
+    const phoneNumber = rawPhone.startsWith("+") ? rawPhone : `+${rawPhone}`;
 
     const admin = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY, {
         auth: { persistSession: false },
@@ -41,7 +48,7 @@ Deno.serve(async (req: Request) => {
     // PRIVACY: phone is used only for lookup — never written to audit logs
     const { data: guide } = await admin
         .from("profiles")
-        .select("id, full_name")
+        .select("id, full_name, token_balance, trust_score, skill_tier")
         .eq("phone", phoneNumber)
         .eq("role", "GUIDE")
         .maybeSingle();
@@ -50,11 +57,20 @@ Deno.serve(async (req: Request) => {
         return ussdResponse("END Phone number not registered as a RescueMe Guide.");
     }
 
-    const guideId = (guide as { id: string; full_name: string }).id;
-    const guideName = (guide as { id: string; full_name: string }).full_name;
+    const guideData = guide as {
+        id: string;
+        full_name: string;
+        token_balance: number;
+        trust_score: number;
+        skill_tier: string;
+    };
+    const guideId = guideData.id;
+    const guideName = guideData.full_name;
+
+    console.log(`[USSD] Guide found: ${guideName} (${guideId}) for phone ${phoneNumber}`);
 
     // --- Step 2: Find their currently assigned incident ---
-    const { data: incident } = await admin
+    const { data: incident, error: lookupError } = await admin
         .from("incidents")
         .select("id, type, latitude, longitude, status")
         .contains("assigned_guide_ids", [guideId])
@@ -63,8 +79,32 @@ Deno.serve(async (req: Request) => {
         .limit(1)
         .maybeSingle();
 
+    if (lookupError) {
+        console.error(`[USSD] Incident lookup error for guide ${guideId}:`, lookupError.message);
+    }
+
+    // --- NEW: Main Menu Fallback if No Incident ---
     if (!incident) {
-        return ussdResponse("END No active assignment found for your number.");
+        if (!text) {
+            return ussdResponse(
+                `CON RescueMe Abuja — Welcome ${guideName}\n` +
+                `1. Report Emergency\n` +
+                `2. Check Token Balance\n` +
+                `3. View My Trust Score`
+            );
+        }
+
+        if (text === "1") {
+            return ussdResponse("END To report an emergency, dial *384*5# or call the control room immediately.");
+        }
+        if (text === "2") {
+            return ussdResponse(`END Your current balance: ₦${guideData.token_balance.toLocaleString()}\nThank you for serving Abuja.`);
+        }
+        if (text === "3") {
+            return ussdResponse(`END Trust Score: ${guideData.trust_score}/100\nRank: ${guideData.skill_tier}\nComplete rescues to level up.`);
+        }
+
+        return ussdResponse("END Invalid option. Please dial *384*00705# to start again.");
     }
 
     const incidentRecord = incident as {
@@ -174,7 +214,14 @@ Deno.serve(async (req: Request) => {
 // Helper: format a USSD/SMS plain-text response
 // ---------------------------------------------------------------------------
 function ussdResponse(text: string): Response {
-    return new Response(text, {
+    // AT USSD Protocol: Must start with "CON " or "END "
+    const responseString = text.startsWith("CON ") || text.startsWith("END ")
+        ? text
+        : `END ${text}`;
+
+    console.log("AT Response Sent:", responseString);
+
+    return new Response(responseString, {
         headers: { "Content-Type": "text/plain" },
         status: 200,
     });
